@@ -3,7 +3,7 @@
 
 
 generate_random_matrix <- function(k=5) {
-  M <- matrix(rbinom((k*k), 1,.5), nrow=5)
+  M <- matrix(rbinom(k*k, 1,.5), nrow=k)
   return(M)
 }
 
@@ -24,22 +24,25 @@ one_step <- function(U, V, W) {
   
   res <- (U %*% ((V %*% z) %% 2)) %% 2
   if( identical(res, (W %*% z) %% 2) ){
-    return(T)
-  } else {
     return(F)
+  } else {
+    return(T)
   }
 }
 
 m_steps <- function(k = 5, m = 100) {
+  stopifnot(k > 0 && m > 0)
+  
   U <- generate_random_matrix(k)
   V <- generate_random_matrix(k)
   W <- generate_random_matrix(k)
   
-  z <- array(rbinom(k, 1, .5))
-  
   a = c(one_step(U,V,W))
-  for( i in 2:m ) {
-    a = c(a, one_step(U,V,W))
+  if(m > 1) {
+    for( i in 2:m ) {
+      a = c(a, one_step(U,V,W))
+    }
   }
   return(a)
 }
+
