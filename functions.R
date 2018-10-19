@@ -30,12 +30,11 @@ one_step <- function(U, V, W) {
   }
 }
 
-m_steps <- function(k = 5, m = 100) {
+m_steps <- function(k = 5, m = 100, U = generate_random_matrix(k), 
+                    V = generate_random_matrix(k),
+                    W = generate_random_matrix(k)) {
   stopifnot(k > 0 && m > 0)
-  
-  U <- generate_random_matrix(k)
-  V <- generate_random_matrix(k)
-  W <- generate_random_matrix(k)
+  stopifnot(dim(U) == dim(V) && dim(V) == dim(W))
   
   a = c(one_step(U,V,W))
   if(m > 1) {
@@ -45,4 +44,3 @@ m_steps <- function(k = 5, m = 100) {
   }
   return(a)
 }
-
