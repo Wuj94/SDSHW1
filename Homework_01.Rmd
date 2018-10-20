@@ -1,0 +1,290 @@
+---
+title: "Homework_01"
+author: "Giuseppe Calabrese, Michele Cernigliaro"
+date: "20/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Exercise 01: Randomize this...
+
+1.a. Pick 4 different triplets of binary $(k \times k)$ matrices $\{ \boldsymbol{U}, \boldsymbol{V}, \boldsymbol{W}\}$ with $k \in \{5, 50, 100, 500\}$ such that $\boldsymbol{U} \, \boldsymbol{V} \neq \boldsymbol{W}$ -- you *may* want to randomize their construction too.
+  
+```{r}
+generate_random_matrix <- function(k=5) {
+  M <- matrix(rbinom(k*k, 1,.5), nrow=k)
+  return(M)
+}
+
+check_triplet <- function(U,V,W) {
+  stopifnot(dim(U) == dim(V) && dim(V) == dim(W))
+  equal <- T
+  if(identical((U %*% V) %% 2, W)){
+      equal <- F
+  }
+  return(equal)
+}
+
+# array containing k values for each matrix (5, 50, 100, 500)
+ks <- c(5, 50, 100, 500)
+# initalizing the list which contains the matrices
+res.a <- list()
+
+for( i in 1:length(ks)){
+  
+  check.non.identity <- F
+  
+  triplet <- list()
+  while ( check.non.identity == F){
+    
+    U <- generate_random_matrix(ks[i])
+    V <- generate_random_matrix(ks[i])
+    W <- generate_random_matrix(ks[i])
+    
+    check.non.identity <- check_triplet(U,V,W)
+    
+    if( check.non.identity == T){
+      triplet[[1]] <- U
+      triplet[[2]] <- V
+      triplet[[3]] <- W
+    }
+  }
+  
+  res.a[[i]] <- triplet
+  
+}
+```
+  
+
+1.b For each of these triplets, repeat $M = 100$ times the one-step testing procedure and \emph{approximate} the probability of error with the proportion of times (out of $M$) you get a wrong output.
+
+```{r}
+# Algorithms ------------------------------------------------------
+
+# Implements the one step algorithm given in the homework text.
+# - input:
+# for a given k:
+# U is a k*k binary matrix
+# V is a k*k binary matrix
+# W is a k*k binary matrix
+# - output:
+# false if UVz == Wz, true otherwise.
+
+one_step <- function(U, V, W) {
+  stopifnot(dim(U) == dim(V) && dim(V) == dim(W))
+  z <- array(rbinom(dim(U)[1], 1, .5))
+  
+  res <- (U %*% ((V %*% z) %% 2)) %% 2
+  if( identical
+      (res, (W %*% z) %% 2) ){
+    return(F)
+  } else {
+    return(T)
+  }
+}
+
+# Implements the m-step algorithm given in the homework text.
+# - input:
+# k is the number of columns / rows of the matrices U,V,W
+# m is the number of trials
+# U is a k*k binary matrix
+# V is a k*k binary matrix
+# W is a k*k binary matrix
+# - output:
+# an array containing the results obtained for each trial. Namely, 
+# the array entries are: false if UVz == Wz, true otherwise.
+
+m_steps <- function(k = 5, m = 100, U = generate_random_matrix(k), 
+                    V = generate_random_matrix(k),
+                    W = generate_random_matrix(k)) {
+  stopifnot(k > 0 && m > 0)
+  stopifnot(dim(U) == dim(V) && dim(V) == dim(W))
+  
+  a <- c(one_step(U,V,W))
+  if(m > 1) {
+    for( i in 2:m ) {
+      a = c(a, one_step(U,V,W))
+    }
+  }
+  return(a)
+}
+
+m <- 100
+prop  <- vector()
+
+for( i in 1:length(ks)){
+  res.b <- c(m_steps(k=ks[i], m=m))
+  t = table(res.b) / length(res.b)
+  prop <- c(prop, t['TRUE'])
+}
+
+error.k <- 1 - prop
+names(error.k) <- c("5", "50", "100","500")
+```
+
+1.c Do it again but with $M = 1000$ and $M = 10000$. For speed, check and use the [`foreach` package](https://cran.r-project.org/web/packages/foreach/index.html) or [any other parallelization scheme](https://cran.r-project.org/web/views/HighPerformanceComputing.html).
+
+
+Sequential version
+```{r}
+prop = vector()
+ms = c(1000, 10000)
+
+seq.start.time <- Sys.time()
+for( i in 1:length(ks)){
+  for( j in 1:length(ms)){
+    res.b = c(m_steps(k=ks[i], m=ms[j]))
+    t = table(res.b) / length(res.b)
+    prop = c(prop, t['TRUE'])  
+  }
+}
+seq.end.time <- Sys.time()
+seq.tot.time <- seq.end.time - seq.start.time
+```
+
+
+Parallel version
+```{r}
+library(foreach)
+library(doParallel)
+
+par.start.time <- Sys.time()
+cl <- parallel::makeForkCluster()
+doParallel::registerDoParallel(cl)
+
+a <- foreach(i = 1:length(ks), .combine = 'c') %:% foreach(j = 1:length(ms)) %dopar% {
+  res.b = c(m_steps(k=ks[i], m=ms[j]))
+  t = table(res.b) / length(res.b)
+  t['TRUE']
+}
+
+parallel::stopCluster(cl)
+
+par.end.time <- Sys.time()
+par.tot.time <- par.end.time - par.start.time
+```
+
+1.d \underline{Extensively} comment the results obtained in terms of speeed (in $k$) and error probability, and compare them with their theoretical counterparts highlighted above. Are the theoretical bounds *tight* or not? Did the parallelization help or not?
+
+
+```{r}
+# array containing k values for each matrix (5, 50, 100, 500)
+ks <- c(5, 50, 100, 500)
+# initalizing 'results vector' (it will contain the results of the proportion)
+res.a <- vector()
+# inizializing 'execution times vector' (execution time of one-step algo for each matrix)
+iter.times <- vector(length=4)
+
+# now, for every type of k, do one-step algorithm (m-step with m=1)
+# and concatenate the results in res.a (True if the matrices are different)
+
+for( i in 1:length(ks)){
+  
+  start.time <- Sys.time()
+  # m_steps takes in input the actual k and m=1 (one-step algo)
+  # and gives as output the result
+  res.a <- c(res.a, m_steps(k=ks[i], m=1))
+  end.time <- Sys.time()
+  iter.times[i] <- end.time - start.time
+}
+
+# plotting execution times results
+names(iter.times) <- ks
+plot(x = names(iter.times), y = iter.times, xlab = 'matrix dimension', col = "dodgerblue3", ylab = 'exec time', main='one step algorithm', xaxt='n', type='s') + axis(side = 1, at = ks)
+
+# describing the theoretical function y= ak^2 approximating the unknown constant 'a' 
+# with the empirical value of execution time for the k = 500 matrix (a ~ time_k_500 / 500^2)
+theor.time.comp <- function(x) (iter.times[4]/500^2)*x^2 
+curve(theor.time.comp, add=T, col='chartreuse3')
+```
+
+The execution time rapidly grows. In particular, we notice that the difference in the execution time for k = 100 and k = 500 is much bigger than any other pair of adjacent k's. This is exactly what we expected taking into account the theoretical time complexity $O(k^2)$.
+
+
+The results obtained from the experiments show an error probability much lower than 0.5. Moreover, the error probability quickly approaches zero as the number of $\Pr(\text{Error})$ are loose.
+
+About the parallelization, we didn't get significative improvements in the performance in terms of execution time. 
+
+2. As we did in class talking about verifying polynomial identities, to improve on the error probability bound, we can again use the fact that the algorithm has a \emph{one--sided error} and run the algorithm multiple times, say $p$, to get a \emph{$p$-step randomize algorithm}.
+
+a. If we attempt the verification $p = 100$ times (independent from each other), how can we bound the probability of error then?
+
+Since the sampling of the vector $\bar{\boldsymbol{z}}$ happens with replacement, the algorithm is repeated p times independent from each other.
+We know that the probability of error for $p = 1$ is:
+
+\[
+\Pr(\text{error}) \leq \frac{1}{2}
+\]
+
+Since each of the one-step algorithm runs are independent, the probability of error of the p-step algorithm is:
+
+\[
+\Pr(\text{p-step error}) = \prod_{i=1}^p \Pr (error) \leq \frac{1}{2^p}
+\]
+
+It follows that for p = 100, we have:
+
+\[
+\Pr(\text{100-step error}) \leq \frac{1}{2^{100}}
+\]
+
+2.b As we noticed in class, an interesting related problem is to evaluate the gradual change in our confidence in the correctness of the matrix multiplication as we repeat the randomized test. Let $E$ be the event that the matrix identity is correct, and let $B$ be the event that the test returns that the identity is correct. How likely is $E$ in light of $B$ and how sensible is this result to your initial, ``personal'' probabilistic assumptions?
+
+Let's clarify the problem, starting from the events: 
+
+\[
+E = \{UV = W\}
+\]
+\[
+B = \{\text{the test returns the identity UV = W}\}
+\]
+
+Since we don't know the initial value of $\Pr(E)$, we assign $1/2$ to it (as a starting point we trivially assume that half of the times we get $UV = W$).
+Using Bayes' theorem:
+
+\[
+\Pr(E|B) = \frac{\Pr(B|E)\Pr(E)}{\Pr(B)} = \frac{\Pr(B|E)\Pr(E)}{\Pr(B|E)\Pr(E)+ \Pr(B|E^C)\Pr(E^C)}
+\]
+
+We immediately notice that $\Pr(E^c) = 1/2$.
+The probability of getting a positive test given that the matrices are equal is $1$, due to the fact that for each vector $\bar{\boldsymbol{z}}$, if we know that $UV = W$, we get the identity verified. So $\Pr(B|E) = 1$. Moreover, we know that $\Pr(B|E^C)$ is the probability of the one-side error, that we have obtained in the point 2.b as $1/2^p$.
+Using Bayes' theorem, we conclude:
+
+\[
+\Pr(E|B) \leq \frac{1 \cdot \frac{1}{2}}{1 \cdot \frac{1}{2} + \frac{1}{2^p}\cdot\frac{1}{2}} = \frac{1}{1+\frac{1}{2^p}}
+\]
+
+c. Assume now that running the $p$-step randomize algorithm, it \underline{always} returns that the identity is correct. As $p$ varies from $1$ to $50$, how does the probability of $E$ change based on this increasingly overwhelming empirical evidence?
+
+
+In this case, we don't know the prior probability of E. But we can use the Iterative Bayes approach, and from a $\Pr(E)$ chosen arbitrarily, we can update this probability for each step, in light of the happening of the event B for each iteration.
+
+```{r}
+# iterative bayes for p from 1 to 50
+p <- 50
+p.error <- .5 # less than .5
+
+results <- vector(mode="numeric", length = p)
+results[1] <- .5 # personal probabilistic assumption
+
+for(i in 1:p){
+  p.e.given.b <- (results[i]) / (results[i] + p.error*(1 - results[i]))
+  if( i != p )
+    results[i + 1] <- p.e.given.b
+}
+
+
+# 2.d ---------------------------------------------------------------------
+
+#library(manipulate)
+#manipulate(plot(results, xlim=c(0,x.max)),  x.max=slider(1,p))
+
+```
+
+## Exercise 02: Version B
+
+Monty Hall's problem modified.
+
