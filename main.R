@@ -1,23 +1,37 @@
 source("functions.R")
 
-
 # 1.a. --------------------------------------------------------------------
+
+# array containing k values for each matrix (5, 50, 100, 500)
 ks <- c(5, 50, 100, 500)
+# initalizing 'results vector' (it'll contain the results of the proportion)
 res.a <- vector()
-iter.times <- vector(length=5)
+# inizializing 'execution times vector' (execution time of one-step algo for each matrix)
+iter.times <- vector(length=4)
+
+# now, for every type of k, do one-step algorithm (m-step with m=1)
+# and concatenate the results in res.a (True if the matrices are different)
 
 for( i in 1:length(ks)){
+  
   start.time <- Sys.time()
+  # m_steps takes in input the actual k and m=1 (one-step algo)
+  # and gives as output the result
   res.a <- c(res.a, m_steps(k=ks[i], m=1))
   end.time <- Sys.time()
   iter.times[i] <- end.time - start.time
 }
+
+# plotting execution times results
 names(iter.times) <- ks
-plot(x = names(iter.times), y = iter.times, xlab = 'matrix dimension', 
+plot(x = names(iter.times), y = iter.times, xlab = 'matrix dimension', col = "dodgerblue3",
      ylab = 'exec time (log scale)', main='one step algorithm', xaxt='n', type='s')
 axis(side = 1, at = ks)
-theor.time.comp <- function(x) (1.7006588e-7)*(x^2)
-curve(theor.time.comp, add=T, col='green')
+
+# describing the theoretical function y= ak^2 approximating the unknown constant 'a' 
+# with the empirical value of execution time for the k = 500 matrix (a ~ time_k_500 / 500^2)
+theor.time.comp <- function(x) (iter.times[4]/500^2)*x^2 
+curve(theor.time.comp, add=T, col='chartreuse3')
 
 # 1.b ---------------------------------------------------------------------
 ks = c(5, 50, 100, 500)
