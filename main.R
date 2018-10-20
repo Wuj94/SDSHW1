@@ -4,7 +4,7 @@ source("functions.R")
 
 # array containing k values for each matrix (5, 50, 100, 500)
 ks <- c(5, 50, 100, 500)
-# initalizing 'results vector' (it'll contain the results of the proportion)
+# initalizing 'results vector' (it will contain the results of the proportion)
 res.a <- vector()
 # inizializing 'execution times vector' (execution time of one-step algo for each matrix)
 iter.times <- vector(length=4)
